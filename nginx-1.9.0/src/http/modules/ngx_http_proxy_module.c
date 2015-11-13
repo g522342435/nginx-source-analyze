@@ -780,8 +780,6 @@ static ngx_keyval_t  ngx_http_proxy_cache_headers[] = {
 };
 
 #endif
-
-
 static ngx_http_variable_t  ngx_http_proxy_vars[] = {
 
     { ngx_string("proxy_host"), NULL, ngx_http_proxy_host_variable, 0,
@@ -814,6 +812,8 @@ static ngx_path_init_t  ngx_http_proxy_temp_path = {
 };
 
 
+//在http的请求发送给有proxy_cache和proxy_pass定义的location的时候，
+//会调用到ngx_http_proxy_handler()
 static ngx_int_t
 ngx_http_proxy_handler(ngx_http_request_t *r)
 {
@@ -825,10 +825,11 @@ ngx_http_proxy_handler(ngx_http_request_t *r)
     ngx_http_proxy_main_conf_t  *pmcf;
 #endif
 
-    if (ngx_http_upstream_create(r) != NGX_OK) { // ����upstream �Ļ����ṹ��
+    if (ngx_http_upstream_create(r) != NGX_OK) { // 创建upstream 的基础结构体
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    //设置r->ctx[ngx_http_proxy_module.ctx_index] = ctx  
     ctx = ngx_pcalloc(r->pool, sizeof(ngx_http_proxy_ctx_t));
     if (ctx == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -836,6 +837,7 @@ ngx_http_proxy_handler(ngx_http_request_t *r)
 
     ngx_http_set_ctx(r, ctx, ngx_http_proxy_module);
 
+    //获取ngx_http_proxy_loc_conf_t 
     plcf = ngx_http_get_module_loc_conf(r, ngx_http_proxy_module);
 
     u = r->upstream;
@@ -855,6 +857,7 @@ ngx_http_proxy_handler(ngx_http_request_t *r)
 
     u->output.tag = (ngx_buf_tag_t) &ngx_http_proxy_module;
 
+    //获取upstream server的信息，如标签、服务器ip、port等 
     u->conf = &plcf->upstream;
 
 #if (NGX_HTTP_CACHE)
@@ -864,10 +867,15 @@ ngx_http_proxy_handler(ngx_http_request_t *r)
     u->create_key = ngx_http_proxy_create_key;
 #endif
 
+    //生成发送到上游服务器的请求缓冲（或者一条缓冲链） 
     u->create_request = ngx_http_proxy_create_request;
+    //在后端服务器被重置的情况下（在create_request被第二次调用之前）被调用
     u->reinit_request = ngx_http_proxy_reinit_request;
+    //处理上游服务器回复的第一个bit，时常是保存一个指向上游回复负载的指针
     u->process_header = ngx_http_proxy_process_status_line;
+    //在客户端放弃请求的时候被调用  
     u->abort_request = ngx_http_proxy_abort_request;
+     //在Nginx完成从上游服务器读入回复以后被调用 
     u->finalize_request = ngx_http_proxy_finalize_request;
     r->state = 0;
 
@@ -879,12 +887,12 @@ ngx_http_proxy_handler(ngx_http_request_t *r)
         u->rewrite_cookie = ngx_http_proxy_rewrite_cookie;
     }
 
-     //����upstream��buffer��־λ��Ϊ0ʱ���������������ȣ�
-  //����ʹ���ļ�������Ӧ���壬Ϊ1ʱ���ж��buffer������
-  //����ʹ���ļ���������Ӧ����
+     //设置upstream的buffer标志位，为0时，以下游网速优先，
+  //不会使用文件缓存响应包体，为1时，有多个buffer，并且
+  //可以使用文件来缓存响应包体
     u->buffering = plcf->upstream.buffering;
 
-      //��bufferingΪ1ʱ��ʹ�õ���pipe�ṹ���������������ȣ���Ҫʹ�ø����buffer����ʱ�ļ�������Ӧ
+      //当buffering为1时会使用到该pipe结构，即下游网速优先，需要使用更多的buffer和临时文件缓存响应
     u->pipe = ngx_pcalloc(r->pool, sizeof(ngx_event_pipe_t));
     if (u->pipe == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -900,8 +908,8 @@ ngx_http_proxy_handler(ngx_http_request_t *r)
     u->accel = 1;
 
 
-   //��ʼ��ȡ������壬��ȡ�����󣬿�ʼ����ngx_http_upstream_init��
-  //��ʼupstream������
+   //开始读取请求包体，读取结束后，开始调用ngx_http_upstream_init，
+  //开始upstream的流程
     if (!plcf->upstream.request_buffering
         && plcf->body_values == NULL && plcf->upstream.pass_request_body
         && (!r->headers_in.chunked
@@ -3602,6 +3610,10 @@ ngx_http_proxy_init_headers(ngx_conf_t *cf, ngx_http_proxy_loc_conf_t *conf,
 }
 
 
+
+//那么，当有请求访问到特定的location的时候(假设这个location配置了proxy_pass指令)，跟其他请求一样，会调用各个phase的checker和handler，到了NGX_HTTP_CONTENT_PHASE的checker，即ngx_http_core_content_phase()的时候，会调用r->content_handler(r)，即 ngx_http_proxy_handler
+
+//http://www.tuicool.com/articles/Zf6r6fv upstream 介绍
 static char *
 ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -3619,8 +3631,10 @@ ngx_http_proxy_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return "is duplicate";
     }
 
+    //获取当前的location，即在哪个location配置的"proxy_pass"指令
     clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
 
+    //设置loc的handler，这个clcf->handler会在ngx_http_update_location_config()里面赋予r->content_handler，从而在NGX_HTTP_CONTENT_PHASE里面调用这个handler，即ngx_http_proxy_handler
     clcf->handler = ngx_http_proxy_handler;
 
     if (clcf->name.data[clcf->name.len - 1] == '/') {
