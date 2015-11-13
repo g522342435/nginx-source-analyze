@@ -1,3 +1,9 @@
 
 Documentation is available at http://nginx.org
+2015-11-13 - 2015-11-30 分析nginx event 模块和主体框架
+
+2015-12-01 - 2015-12-31 分析nginx http模块流程（包含upstream proxy module）
+
+2016-01-01 - 2016-03-31 分析 rtmp、mp4、flv 三个模块代码
+
 
