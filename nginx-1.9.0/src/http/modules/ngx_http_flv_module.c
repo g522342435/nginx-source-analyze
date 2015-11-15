@@ -27,6 +27,7 @@ static ngx_command_t  ngx_http_flv_commands[] = {
 static u_char  ngx_flv_header[] = "FLV\x1\x5\0\0\0\x9\0\0\0\0";
 
 
+//模块上下文
 static ngx_http_module_t  ngx_http_flv_module_ctx = {
     NULL,                          /* preconfiguration */
     NULL,                          /* postconfiguration */
@@ -73,15 +74,15 @@ ngx_http_flv_handler(ngx_http_request_t *r)
     ngx_open_file_info_t       of;
     ngx_http_core_loc_conf_t  *clcf;
 
-    if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) {
+    if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) { // 校验请求类型
         return NGX_HTTP_NOT_ALLOWED;
     }
 
-    if (r->uri.data[r->uri.len - 1] == '/') {
+    if (r->uri.data[r->uri.len - 1] == '/') { //
         return NGX_DECLINED;
     }
 
-    rc = ngx_http_discard_request_body(r);
+    rc = ngx_http_discard_request_body(r);// 扔掉body数据，不处理
 
     if (rc != NGX_OK) {
         return rc;
@@ -103,6 +104,7 @@ ngx_http_flv_handler(ngx_http_request_t *r)
 
     ngx_memzero(&of, sizeof(ngx_open_file_info_t));
 
+    // 设置从文件读取数据的相关回调函数
     of.read_ahead = clcf->read_ahead;
     of.directio = clcf->directio;
     of.valid = clcf->open_file_cache_valid;
@@ -155,6 +157,7 @@ ngx_http_flv_handler(ngx_http_request_t *r)
         return rc;
     }
 
+    //打开失败
     if (!of.is_file) {
 
         if (ngx_close_file(of.fd) == NGX_FILE_ERROR) {
@@ -190,6 +193,7 @@ ngx_http_flv_handler(ngx_http_request_t *r)
 
     log->action = "sending flv to client";
 
+    //设置发送到客户端的数据
     r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.content_length_n = len;
     r->headers_out.last_modified_time = of.mtime;
@@ -202,6 +206,7 @@ ngx_http_flv_handler(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    //开辟buf 填充数据，准备向外发送数据。
     if (i == 0) {
         b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
         if (b == NULL) {
@@ -229,12 +234,14 @@ ngx_http_flv_handler(ngx_http_request_t *r)
 
     r->allow_ranges = 1;
 
+    //发送到http头部
     rc = ngx_http_send_header(r);
 
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
         return rc;
     }
 
+    //填充buf
     b->file_pos = start;
     b->file_last = of.size;
 
@@ -250,6 +257,7 @@ ngx_http_flv_handler(ngx_http_request_t *r)
     out[1].buf = b;
     out[1].next = NULL;
 
+    //真正的发送链条
     return ngx_http_output_filter(r, &out[i]);
 }
 
