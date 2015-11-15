@@ -179,11 +179,11 @@ main(int argc, char *const *argv)
     ngx_int_t         i;
     ngx_log_t        *log;
     ngx_cycle_t      *cycle, init_cycle;
-    ngx_core_conf_t  *ccf;  //core module µÄÅäÖÃÎÄ¼şĞÅÏ¢
+    ngx_core_conf_t  *ccf;  //core module çš„é…ç½®æ–‡ä»¶ä¿¡æ¯
 
     ngx_debug_init();
 
-    if (ngx_strerror_init() != NGX_OK) { //½«ÏµÍ³µÄ³ö´íĞÅÏ¢ ·â×°µ½ngx_sys_errlist
+    if (ngx_strerror_init() != NGX_OK) { //å°†ç³»ç»Ÿçš„å‡ºé”™ä¿¡æ¯ å°è£…åˆ°ngx_sys_errlist
         return 1;
     }
 
@@ -264,7 +264,7 @@ main(int argc, char *const *argv)
 
     ngx_pid = ngx_getpid();
 
-    log = ngx_log_init(ngx_prefix);// ³õÊ¼»¯logµÄÏà¹ØÄ£¿é
+    log = ngx_log_init(ngx_prefix);// åˆå§‹åŒ–logçš„ç›¸å…³æ¨¡å—
     if (log == NULL) {
         return 1;
     }
@@ -279,9 +279,9 @@ main(int argc, char *const *argv)
      * ngx_process_options()
      */
 
-    ngx_memzero(&init_cycle, sizeof(ngx_cycle_t)); // memset ²Ù×÷
+    ngx_memzero(&init_cycle, sizeof(ngx_cycle_t)); // memset æ“ä½œ
     init_cycle.log = log;//
-    ngx_cycle = &init_cycle; // È«¾ÖµÄångx_cycle
+    ngx_cycle = &init_cycle; // å…¨å±€çš„éŒ¸gx_cycle
 
     init_cycle.pool = ngx_create_pool(1024, log);
     if (init_cycle.pool == NULL) {
@@ -292,15 +292,15 @@ main(int argc, char *const *argv)
         return 1;
     }
 
-    // ngx_cycleµÄprefix, conf_prefix, conf_file, conf_paramµÈ×Ö¶Î
+    // ngx_cycleçš„prefix, conf_prefix, conf_file, conf_paramç­‰å­—æ®µ
     if (ngx_process_options(&init_cycle) != NGX_OK) {
         return 1;
     }
 
 
 
-    //³õÊ¼»¯ÏµÍ³Ïà¹Ø±äÁ¿£¬ÈçÄÚ´æÒ³Ãæ´óĞ¡
-    //ngx_pagesize,ngx_cacheline_size,×î´óÁ¬½ÓÊıngx_max_socketsµÈ
+    //åˆå§‹åŒ–ç³»ç»Ÿç›¸å…³å˜é‡ï¼Œå¦‚å†…å­˜é¡µé¢å¤§å°
+    //ngx_pagesize,ngx_cacheline_size,æœ€å¤§è¿æ¥æ•°ngx_max_socketsç­‰
     if (ngx_os_init(log) != NGX_OK) {
         return 1;
     }
@@ -309,16 +309,16 @@ main(int argc, char *const *argv)
      * ngx_crc32_table_init() requires ngx_cacheline_size set in ngx_os_init()
      */
 
-    //³õÊ¼»¯CRC±í(ºóĞøµÄCRCĞ£ÑéÍ¨¹ı²é±í½øĞĞ£¬Ğ§ÂÊ¸ß)
+    //åˆå§‹åŒ–CRCè¡¨(åç»­çš„CRCæ ¡éªŒé€šè¿‡æŸ¥è¡¨è¿›è¡Œï¼Œæ•ˆç‡é«˜)
     if (ngx_crc32_table_init() != NGX_OK) {
         return 1;
     }
 
-    if (ngx_add_inherited_sockets(&init_cycle) != NGX_OK) { // Ê×´ÎÖ´ĞĞÃ»ÓĞ´Ó»·¾³±äÁ¿ÖĞ¶ÁÈ¡socketÖµ
+    if (ngx_add_inherited_sockets(&init_cycle) != NGX_OK) { // é¦–æ¬¡æ‰§è¡Œæ²¡æœ‰ä»ç¯å¢ƒå˜é‡ä¸­è¯»å–socketå€¼
         return 1;
     }
 
-    //index µÄÖµÎªÃ¿¸öÄ£¿éÔÚËùÓĞÄ£¿éÖĞÎ»ÖÃ
+    //index çš„å€¼ä¸ºæ¯ä¸ªæ¨¡å—åœ¨æ‰€æœ‰æ¨¡å—ä¸­ä½ç½®
     ngx_max_module = 0;
     for (i = 0; ngx_modules[i]; i++) {
         ngx_modules[i]->index = ngx_max_module++;
@@ -346,8 +346,8 @@ main(int argc, char *const *argv)
     if (ngx_signal) {
 
        /*
-        ±éÀúsignalÊı×é£¬ÕÒµ½Æ¥ÅäµÄĞÅºÅ²¢Í¨¹ıkill ½«ĞÅºÅ´«µİ¸ø½ø³Ì£¬ÈÃ½ø³Ì¸ù¾İĞÅºÅ×öÏàÓ¦´¦Àí¡£
-        kill²¢²»ÊÇÉ±ËÀµÄÒâË¼£¬killÊÇ´«µİĞÅºÅµÄÒâË¼
+        éå†signalæ•°ç»„ï¼Œæ‰¾åˆ°åŒ¹é…çš„ä¿¡å·å¹¶é€šè¿‡kill å°†ä¿¡å·ä¼ é€’ç»™è¿›ç¨‹ï¼Œè®©è¿›ç¨‹æ ¹æ®ä¿¡å·åšç›¸åº”å¤„ç†ã€‚
+        killå¹¶ä¸æ˜¯æ€æ­»çš„æ„æ€ï¼Œkillæ˜¯ä¼ é€’ä¿¡å·çš„æ„æ€
        */
         return ngx_signal_process(cycle, ngx_signal);
     }
@@ -356,7 +356,7 @@ main(int argc, char *const *argv)
 
     ngx_cycle = cycle;
 
-    ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
+    ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);// æŸ¥æ‰¾é…ç½®æ–‡ä»¶çš„å®šä¹‰ç»“æ„
 
     if (ccf->master && ngx_process == NGX_PROCESS_SINGLE) {
         ngx_process = NGX_PROCESS_MASTER;
@@ -399,11 +399,11 @@ main(int argc, char *const *argv)
 
     ngx_use_stderr = 0;
 
-    if (ngx_process == NGX_PROCESS_SINGLE) {
+    if (ngx_process == NGX_PROCESS_SINGLE) {//å•è¿›ç¨‹æ¨¡å¼
         ngx_single_process_cycle(cycle);
 
     } else {
-        ngx_master_process_cycle(cycle);
+        ngx_master_process_cycle(cycle); // å¤šè¿›ç¨‹æ¨¡å‹ï¼Œä¸»è¦åˆ†æ
     }
 
     return 0;
@@ -411,7 +411,7 @@ main(int argc, char *const *argv)
 
 
 static ngx_int_t
-ngx_add_inherited_sockets(ngx_cycle_t *cycle)//´Ó»·¾³±äÁ¿ÖĞÈ¡µÃsocket 
+ngx_add_inherited_sockets(ngx_cycle_t *cycle)//ä»ç¯å¢ƒå˜é‡ä¸­å–å¾—socket 
 {
     u_char           *p, *v, *inherited;
     ngx_int_t         s;
@@ -427,15 +427,15 @@ ngx_add_inherited_sockets(ngx_cycle_t *cycle)//´Ó»·¾³±äÁ¿ÖĞÈ¡µÃsocket
                   "using inherited sockets from \"%s\"", inherited);
 
     if (ngx_array_init(&cycle->listening, cycle->pool, 10,
-                       sizeof(ngx_listening_t)) //³õÊ¼»¯Êı×é
+                       sizeof(ngx_listening_t)) //åˆå§‹åŒ–æ•°ç»„
         != NGX_OK)
     {
         return NGX_ERROR;
     }
 
     for (p = inherited, v = p; *p; p++) {
-        if (*p == ':' || *p == ';') {  /* socketsÒÔ':'»òÕß';'¸ô¿ª */  
-            s = ngx_atoi(v, p - v); /* socketsÊÇ10½øÖÆÕıÕûÊı */
+        if (*p == ':' || *p == ';') {  /* socketsä»¥':'æˆ–è€…';'éš”å¼€ */  
+            s = ngx_atoi(v, p - v); /* socketsæ˜¯10è¿›åˆ¶æ­£æ•´æ•° */
             if (s == NGX_ERROR) {
                 ngx_log_error(NGX_LOG_EMERG, cycle->log, 0,
                               "invalid socket number \"%s\" in " NGINX_VAR
@@ -446,20 +446,20 @@ ngx_add_inherited_sockets(ngx_cycle_t *cycle)//´Ó»·¾³±äÁ¿ÖĞÈ¡µÃsocket
 
             v = p + 1;
 
-            ls = ngx_array_push(&cycle->listening);/* ½«ºÏ·¨µÄsocket number¼ÓÈë¸ÃÊı×é*/  
+            ls = ngx_array_push(&cycle->listening);/* å°†åˆæ³•çš„socket numberåŠ å…¥è¯¥æ•°ç»„*/  
             if (ls == NULL) {
                 return NGX_ERROR;
             }
 
             ngx_memzero(ls, sizeof(ngx_listening_t));
 
-            ls->fd = (ngx_socket_t) s; /* ±£´æ¸ÃsocketÖÁlisteningÊı×éÔªËØµÄfd×Ö¶Î */  
+            ls->fd = (ngx_socket_t) s; /* ä¿å­˜è¯¥socketè‡³listeningæ•°ç»„å…ƒç´ çš„fdå­—æ®µ */  
         }
     }
 
     ngx_inherited = 1;
 
-    return ngx_set_inherited_sockets(cycle); /* ¸Ãº¯ÊıÖğÒ»ÉèÖÃcycle->listeningÊı×éÃ¿¸öÔªËØ */ 
+    return ngx_set_inherited_sockets(cycle); /* è¯¥å‡½æ•°é€ä¸€è®¾ç½®cycle->listeningæ•°ç»„æ¯ä¸ªå…ƒç´  */ 
 }
 
 
