@@ -1,0 +1,39 @@
+http://blog.chinaunix.net/uid-25018796-id-94906.html
+1、单进程
+setp 1、 ngx_worker_process_init() 
+setp 2、 调用ngx_epoll_add_event()
+setp 3、 调用ngx_add_channel_event()
+setp 4、 上面三部是做初始化用的
+setp 5、 ngx_epoll_process_events() 重复调用这个函数，探测监听的事件是否发生
+setp 6、 如果有请求，触发epoll，之前每个监听的端口已经设置handler是ngx_event_accept()
+setp 7、 ngx_epoll_process_events()中会调用rev->handler(rev)， 既ngx_event_accept()
+setp 8、 accept()被调用，即接收请求并为其分配一个新的连接，初始化这个新连接，并调用listening socket的handler，即ls->handler(c)
+setp 9、 ls->handler在http_block()（读取配置之后）里面已经设置了(ls->handler = ngx_http_init_connection;)
+setp 10、ngx_http_init_connection()，这个函数添加一个读事件，设置钩子函数为ngx_http_init_request()
+setp 11、epoll触发新的事件调用ngx_http_init_request()，后续继续环节(如process request line，process headers，各个phase等)
+最后一步
+ngx_http_finalize_request() => ngx_http_finalize_connection() => ngx_http_set_keepalive()
+ngx_http_set_keepalive()函数设置事件的处理函数是ngx_http_keepalive_handler()，并调用ngx_post_event()把它添加到ngx_posted_events
+队列里。然后ngx_event_process_posted()函数就会一一处理并删除队列里所有的事件。在ngx_http_keepalive_handler()函数里，
+调用ngx_http_close_connection() => ngx_close_connection() => ngx_del_conn(c,NGX_CLOSE_EVENT)。ngx_del_conn()
+即ngx_epoll_del_connection()，即把这个处理请求的connection从epoll监听的事件列表中删除
+2、多进程
+多进程(我设置了work_processes 2)：和单进程不同，单进程设置epoll timer为-1，即没有事件就一直阻塞在那里，直到监听的端口收到请求。
+而多进程则不同，每个进程会设置一个epoll_wait()的timeout，去轮番尝试获取在监听端口接受请求的权利，如果没有事件就去处理其它的事件
+，如果获得了就阻塞(*直到有任意事件发生)
+1. 在ngx_event_process_init()里面，只会调用ngx_add_channel_event()给进程间通信的socketpair添加事件，
+而不给http监听的端口添加事件(为了保证不会有多个工作进程来同时接受请求)。而每个进程被fork()之后，
+父进程(master process)都会调用ngx_pass_open_channel() => ngx_write_channel()  => sendmsg()
+来通知所有已经存在的进程(这会触发接收方的事件，调用ngx_channel_handler()函数)
+2. 在ngx_process_events_and_timers()里，用一个锁来同步所有的进程ngx_trylock_accept_mutex()，
+并只有一个进程能够得到ngx_accept_mutex这个锁。得到这个锁的进程会调用ngx_enable_accept_events()添加一个监听端口的事件。
+3. 在ngx_epoll_process_events()里，调用了ngx_locked_post_event()添加了一个读事件到accept queue(即ngx_posted_accept_events)，
+然后在ngx_event_process_posted()里面处理，即调用ngx_event_accept()，并添加一个读事件(后面和单进程是一样的)。
+在处理完ngx_posted_accept_events队列里面的所有accept事件之后，ngx_accept_mutex这个锁也会被释放，
+即把接受请求的权利让给其它的进程。
+
+*在多进程的模式下，每当有新的子进程启动的时候，父进程(master process)都会向其余所有进程的socketpair channel
+广播新的子进程的channel。这样，就会导致之前获取监听端口权限(即ngx_accept_mutex)的进程触发epoll事件，
+从而释放ngx_accept_mutex，虽然这个是发生在初始化阶段(之后子进程间一般不通信)，一般不会产生两个或多个进程同时在epoll
+添加监听端口事件的情况。但是在理论上，这样的设计可能会导致系统的bug(比如有人通过给子进程发送信号的办法来实现一些特殊的功能时，
+就有可能让其中一个进程放弃ngx_accept_mutex，而另外某一个进程在之后先于它再次获取到ngx_accept_mutex
